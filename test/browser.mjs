@@ -95,7 +95,7 @@ await page.waitForSelector('.mds-document[data-state="ready"]');
 assert.equal(await page.locator('.mds-diagram').count(), 0);
 assert.ok((await page.locator('.mds-document').textContent()).includes('Replacement'));
 // Render the actual file the user opens in the right sidebar, not only the synthetic fixture.
-const userDemo = await readFile(resolve(root, '../dsh-md-studio-demo.md'), 'utf8');
+const userDemo = await readFile(resolve(root, 'docs/demo.md'), 'utf8');
 await page.evaluate(text => window.__render(text), userDemo);
 await page.waitForSelector('.mds-document[data-state="ready"]', { timeout: 60000 });
 assert.equal(await page.locator('.mds-diagram[data-state="ok"] svg').count(), 4, 'actual demo must render all four diagrams');
