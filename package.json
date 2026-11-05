@@ -23,7 +23,7 @@
   "type": "module",
   "main": "./lib/index.js",
   "exports": {".": "./lib/index.js", "./client": "./lib/client.js", "./package.json": "./package.json"},
-  "files": ["skills", "lib", "docs/images", "docs/demo.md", "cordis.patch.yml", "README.md", "README.en.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md"],
+  "files": ["assets", "lib", "docs/images", "docs/demo.md", "cordis.patch.yml", "README.md", "README.en.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md"],
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node test/browser.mjs",
@@ -34,7 +34,7 @@
     "client": {"platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-sidebar-documentpreview"], "external": ["react"]}
   },
   "engines": {"node": ">=22.19.0", "dsh": ">=0.2.0-rc.2 <0.3.0-0"},
-  "peerDependencies": {"react": "^18.2.0 || ^19"},
+  "peerDependencies": {"@deepseek-ai/dsh-skill": "^0.2.0-rc.1 || ^0.2.1-rc.2 || ^0.2.2-rc.1", "react": "^18.2.0 || ^19"},
   "devDependencies": {
     "esbuild": "0.28.2",
     "mermaid": "11.17.0",
