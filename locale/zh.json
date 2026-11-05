@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Markdown Studio",
+    "description": "在 DSH 原生右侧文件预览与对话消息中渲染 Mermaid 图表、KaTeX 公式、GFM 表格与代码高亮;渲染引擎随包内置,完全离线。"
+  }
+}

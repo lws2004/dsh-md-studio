@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Markdown Studio",
+    "description": "Renders Mermaid diagrams, KaTeX math, GFM tables and highlighted code in the native DSH Markdown preview, fully offline."
+  }
+}

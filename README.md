@@ -128,6 +128,22 @@ flowchart LR
 - 文档上限 200 万字符；单图 5 万字符 / 2000 行 / 2000 边
 - Mermaid 输出经净化：图表内的交互点击、外部图片引用会被禁用
 
+## Model Experience
+
+模型在装载了本插件的 DSH 进程里会收到一段固定的系统提示（`mds-diagram-guidelines`，order 5200）：三条硬规则加一个指向 `mds-diagram-design` skill 的指针。需要画架构图或流程图时，模型输出 `mds-diagram` 围栏或裸 `<svg>` 代码块，渲染器把它转成主题卡片；完整绘图规范（色板、字体阶、布局、关系表达、自查清单）由模型按需用 skill 工具加载，不常驻上下文。
+
+#### KV Cache effect
+
+这段系统提示是逐字固定的文本，不随会话内容或文档变化，每轮请求的前缀保持一致，可被 KV cache 复用。文档正文与图表源码不进入系统提示；随包分发的 skill 正文只在模型主动加载时进入上下文，不占用常驻前缀。
+
+## Known Limitations and Deferred Work
+
+- 只在 web profile 验证过；desktop 打包运行时未验证。
+- Mermaid 输出经净化，图表内的交互点击与外部图片引用被禁用。
+- 文档上限 200 万字符；单图 5 万字符 / 2000 行 / 2000 边。
+- `mds-diagram-design` 是插件自带 skill，仅装载了本插件的 DSH 进程可加载；pi、Hermes 等其它 agent 读不到它。
+- 图表导出 PNG、目录侧栏、设置页仍在 Roadmap 中，未实现。
+
 ## 🛠️ 从源码构建
 
 ```sh
