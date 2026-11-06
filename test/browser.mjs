@@ -10,7 +10,7 @@ const page = await browser.newPage({ viewport: { width: 1060, height: 980 }, acc
 const errors = [], network = [];
 page.on('pageerror', e => errors.push(e.message));
 await page.route('**/*', route => { network.push(route.request().url()); return route.abort(); });
-await page.setContent('<html lang="zh-CN"><head></head><body style="margin:0"><main id="preview"></main></body></html>');
+await page.setContent('<html lang="zh-CN"><head><base href="http://127.0.0.1:3080/"></head><body style="margin:0"><main id="preview"></main></body></html>');
 await page.addScriptTag({path: resolve(root, 'test/react-runtime.js')});
 await page.evaluate(() => {
   window.__ModuleLoader__ = { load: reg => { window.__registration = reg; } };
@@ -33,9 +33,13 @@ const registration = await page.evaluate(() => {
 });
 assert.equal(registration.id, 'dsh-md-studio');
 assert.equal(registration.options.key, '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/markdown');
-const sample = `# 原生右侧 Markdown 预览验证\n\n| 项目 | 状态 |\n|---|---|\n| 离线图表 | 是 |\n\n- [x] 已完成\n- [ ] 待完成\n\n脚注示例[^one]\n\n[^one]: 说明正文\n\n质能关系 $E=mc^2$。\n\n$$\ne^{i\\pi}+1=0\n$$\n\n\`\`\`js\nconst answer = 42;\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n A[打开文件] --> B[右侧预览] --> C[本地渲染]\n\`\`\`\n\n\`\`\`mermaid\nsequenceDiagram\n 用户->>DSH: 打开 Markdown\n DSH-->>用户: 显示图表\n\`\`\`\n\n\`\`\`mermaid\ngantt\n title 验证计划\n dateFormat YYYY-MM-DD\n section 验证\n 渲染 :done, a1, 2026-10-08, 1d\n\`\`\`\n\n\`\`\`mermaid\npie title 能力\n "文档" : 60\n "图表" : 40\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n W2[Codex / Claude Code / KimiCode / OpenCode (ACP)] --> W1[DSH Native]\n\`\`\`\n`;
+const sample = `# 原生右侧 Markdown 预览验证\n\n[相对链接](docs/other.md#L2)\n\n| 项目 | 状态 |\n|---|---|\n| 离线图表 | 是 |\n\n- [x] 已完成\n- [ ] 待完成\n\n脚注示例[^one]\n\n[^one]: 说明正文\n\n质能关系 $E=mc^2$。\n\n$$\ne^{i\\pi}+1=0\n$$\n\n\`\`\`js\nconst answer = 42;\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n A[打开文件] --> B[右侧预览] --> C[本地渲染]\n\`\`\`\n\n\`\`\`mermaid\nsequenceDiagram\n 用户->>DSH: 打开 Markdown\n DSH-->>用户: 显示图表\n\`\`\`\n\n\`\`\`mermaid\ngantt\n title 验证计划\n dateFormat YYYY-MM-DD\n section 验证\n 渲染 :done, a1, 2026-10-08, 1d\n\`\`\`\n\n\`\`\`mermaid\npie title 能力\n "文档" : 60\n "图表" : 40\n\`\`\`\n\n\`\`\`mermaid\nflowchart LR\n W2[Codex / Claude Code / KimiCode / OpenCode (ACP)] --> W1[DSH Native]\n\`\`\`\n`;
 await page.evaluate(text => window.__render(text), sample);
 await page.waitForSelector('.mds-document[data-state="ready"]', {timeout:60000});
+const relativeLinkHref = await page.evaluate(() => [...document.querySelectorAll('.mds-document a[href]')]
+  .find(a => a.textContent.includes('相对链接'))?.getAttribute('href'));
+assert.ok(relativeLinkHref?.includes('/api/file?path='), `本地链接应走 api/file 路由，实际 ${relativeLinkHref}`);
+assert.ok(relativeLinkHref?.includes('docs%2Fother.md'), `相对链接应基于文档目录解析，实际 ${relativeLinkHref}`);
 // Perf regression: content.eof is not a render input (the render only reads
 // content.text), so flipping it on identical text must not rebuild the document
 // or re-lay out its Mermaid diagrams.
@@ -84,7 +88,7 @@ assert.ok((await page.locator('.mds-raw-document').textContent()).includes('flow
 await page.getByRole('button', {name:'阅读文档',exact:true}).click();
 await page.waitForSelector('.mds-document[data-state="ready"]');
 // Regression: invalid diagrams retain source and an error, while other blocks still render.
-await page.evaluate(text => window.__render(text), sample + '\n```mermaid\nnot-a-valid-diagram\n```\n<script>window.__injected=true</script><img src="x" onerror="window.__injected=true">');
+await page.evaluate(text => window.__render(text), sample + '\n```mermaid\nnot-a-valid-diagram\n```\n<script>window.__injected=true</script><img src="" onerror="window.__injected=true">');
 await page.waitForSelector('.mds-document[data-state="partial"]');
 assert.equal(await page.locator('.mds-diagram[data-state="error"]').count(), 1);
 assert.equal(await page.locator('.mds-diagram[data-state="ok"]').count(), 5);

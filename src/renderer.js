@@ -330,7 +330,13 @@ export function mountMarkdown(root, text, { documentPath, dark = false } = {}) {
   root.querySelectorAll('a[href]').forEach(a => {
     const href = a.getAttribute('href');
     if (href.startsWith('#')) a.addEventListener('click', e => { e.preventDefault(); let id; try { id = decodeURIComponent(href.slice(1)); } catch { return; } [...root.querySelectorAll('[id]')].find(n => n.id === id)?.scrollIntoView({ block: 'start' }); }, { signal });
-    else { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    else {
+      // 相对文件链接必须走认证的 api/file 路由：原样 href 会被浏览器拼到
+      // 当前页面 URL（如 127.0.0.1:3080/docs/...）上，必然 404。
+      const local = localImageUrl(href, documentPath);
+      if (local) a.href = local;
+      a.target = '_blank'; a.rel = 'noopener noreferrer';
+    }
   });
   const jobs = [...root.querySelectorAll('pre.mds-diagram-source')].map(pre => diagramCard(pre, dark, signal));
   // Hydrate mds-diagram widget placeholders: swap escaped SVG source for the
