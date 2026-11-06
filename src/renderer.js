@@ -137,11 +137,24 @@ export function localImageUrl(destination, documentPath, base = document.baseURI
   return new URL(`api/file?path=${encodeURIComponent(path)}`, base).href;
 }
 
-// A file address the Sidebar resolves without a Session scope; used for Markdown links.
-export function absoluteFileAddress(path) {
-  const absolute = path.replace(/\\/g, '/').replace(/^\/+/, '');
-  return 'dsh-resource://file/absolute/' + absolute.split('/')
-    .map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
+// Build a Session-scoped file address for a target beside the current document.
+// Document previews only claim session-scoped addresses (absolute scope is rejected by canOpen).
+export function sessionFileAddressFor(resourceAddress, documentPath, targetPath) {
+  const prefix = 'dsh-resource://file/session/';
+  if (!resourceAddress?.startsWith(prefix) || !documentPath || !targetPath) return undefined;
+  const rest = resourceAddress.slice(prefix.length);
+  const slash = rest.indexOf('/');
+  if (slash < 0) return undefined;
+  const sessionId = rest.slice(0, slash);
+  let currentRel;
+  try { currentRel = decodeURIComponent(rest.slice(slash + 1)); } catch { return undefined; }
+  if (!documentPath.endsWith(currentRel)) return undefined;
+  const cwd = documentPath.slice(0, documentPath.length - currentRel.length);
+  const normalizedTarget = targetPath.replace(/\\/g, '/');
+  if (!normalizedTarget.startsWith(cwd)) return undefined;
+  const targetRel = normalizedTarget.slice(cwd.length);
+  return prefix + encodeURIComponent(sessionId) + '/' + targetRel.split('/')
+    .map(segment => encodeURIComponent(segment)).join('/');
 }
 export function markdownHtml(text) {
   if (text.length > MAX_DOCUMENT) throw new Error('文档超过 200 万字符，请分段查看。');
@@ -325,7 +338,7 @@ function diagramCard(pre, dark, signal) {
   });
   return queue;
 }
-export function mountMarkdown(root, text, { documentPath, dark = false, openFile } = {}) {
+export function mountMarkdown(root, text, { documentPath, dark = false, openFile, resourceAddress } = {}) {
   const controller = new AbortController(); const { signal } = controller;
   root.classList.add('mds-document'); root.dataset.mdsVersion = diagnostics.version;
   root.dataset.state = 'rendering';
@@ -346,9 +359,11 @@ export function mountMarkdown(root, text, { documentPath, dark = false, openFile
     if (href.startsWith('#')) a.addEventListener('click', e => { e.preventDefault(); let id; try { id = decodeURIComponent(href.slice(1)); } catch { return; } [...root.querySelectorAll('[id]')].find(n => n.id === id)?.scrollIntoView({ block: 'start' }); }, { signal });
     else {
       const localPath = localFilePath(href, documentPath);
+      const targetAddress = localPath && openFile && /\.md$/i.test(localPath)
+        ? sessionFileAddressFor(resourceAddress, documentPath, localPath) : undefined;
       // Markdown links open in the right-side preview, not as raw bytes in a new tab.
-      if (localPath && openFile && /\.md$/i.test(localPath)) {
-        a.addEventListener('click', e => { e.preventDefault(); openFile(absoluteFileAddress(localPath)); }, { signal });
+      if (targetAddress !== undefined) {
+        a.addEventListener('click', e => { e.preventDefault(); openFile(targetAddress); }, { signal });
         a.removeAttribute('target');
       } else {
         // Non-Markdown files use the authenticated media route; a raw relative

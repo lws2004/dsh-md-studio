@@ -5,7 +5,7 @@ import katexCss from 'katex/dist/katex.min.css';
 import highlightCss from 'highlight.js/styles/github-dark.css';
 
 export const name = 'dsh-md-studio';
-export const inject = ['slots'];
+export const inject = ['slots', 'sidebarRight'];
 const MARKDOWN_KEY = '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/markdown';
 // The Sidebar opener is set once in apply(); MarkdownBody is a slot component
 // and cannot receive this service through the slot's fixed owner props.
@@ -40,7 +40,7 @@ export function MarkdownBody({ content, resourceAddress, useResource }) {
     let view = null;
     const frame = requestAnimationFrame(() => {
       if (!root.current || source) return;
-      view = mountMarkdown(root.current, content.text, { documentPath: absolutePath, dark, openFile: openResource });
+      view = mountMarkdown(root.current, content.text, { documentPath: absolutePath, dark, openFile: openResource, resourceAddress });
     });
     return () => {
       cancelAnimationFrame(frame);

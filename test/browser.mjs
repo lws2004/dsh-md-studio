@@ -27,7 +27,7 @@ const registration = await page.evaluate(() => {
   mod.apply(ctx);
   window.__root = window.__testCreateRoot(document.querySelector('#preview'));
   window.__render = (text, eof = true) => window.__root.render(window.__testReact.createElement(window.__slot.component, {
-    content: {kind:'text', text, pages:[], eof}, resourceAddress:'file:demo', useResource: () => ({value:{absolutePath:'D:/demo.md'}})
+    content: {kind:'text', text, pages:[], eof}, resourceAddress:'dsh-resource://file/session/test-session/demo.md', useResource: () => ({value:{absolutePath:'D:/demo.md'}})
   }));
   return { id: window.__registration.id, options: window.__slot.options, status: window.__dshMdStudio };
 });
@@ -42,7 +42,7 @@ assert.ok(relativeLinkHref?.includes('docs/other.md'), `本地链接应保留原
 // The same Markdown link opens through the Sidebar when an opener is present.
 await page.evaluate(() => [...document.querySelectorAll('.mds-document a[href]')]
   .find(a => a.textContent.includes('相对链接')).click());
-assert.equal(await page.evaluate(() => window.__opened), 'dsh-resource://file/absolute/D:/docs/other.md');
+assert.equal(await page.evaluate(() => window.__opened), 'dsh-resource://file/session/test-session/docs/other.md');
 // Perf regression: content.eof is not a render input (the render only reads
 // content.text), so flipping it on identical text must not rebuild the document
 // or re-lay out its Mermaid diagrams.
