@@ -113,10 +113,8 @@ export function widgetHtml(svgSource, title) {
   return `<div class="mds-widget" data-mds-widget="1"><div class="mds-widget-title">${escape(title || autoTitle || '图表')}</div><pre class="mds-widget-src">${escape(source)}</pre></div>`;
 }
 
-// Same authenticated native media route used by DSH's MarkdownBody. No arbitrary static-file server.
-export function localImageUrl(destination, documentPath, base = document.baseURI) {
-  if (/^https?:\/\//i.test(destination) || /^data:image\/(png|jpeg|gif|webp);base64,/i.test(destination)) return destination;
-  if (/^[/\\]{2}/.test(destination)) return undefined;
+// Resolve a local destination beside the previewed file to an absolute path.
+export function localFilePath(destination, documentPath) {
   let path;
   try { path = decodeURIComponent(destination.split(/[?#]/)[0]); } catch { return undefined; }
   if (!path || /[\x00-\x1f\x7f]/.test(path)) return undefined;
@@ -126,8 +124,24 @@ export function localImageUrl(destination, documentPath, base = document.baseURI
     const i = Math.max(documentPath.lastIndexOf('/'), documentPath.lastIndexOf('\\'));
     path = documentPath.slice(0, i + 1) + path;
   }
+  return path;
+}
+
+// Same authenticated native media route used by DSH's MarkdownBody. No arbitrary static-file server.
+export function localImageUrl(destination, documentPath, base = document.baseURI) {
+  if (/^https?:\/\//i.test(destination) || /^data:image\/(png|jpeg|gif|webp);base64,/i.test(destination)) return destination;
+  if (/^[/\\]{2}/.test(destination)) return undefined;
+  const path = localFilePath(destination, documentPath);
+  if (path === undefined) return undefined;
   if (!/^(https?:|dsh-app:)/.test(base)) return undefined;
   return new URL(`api/file?path=${encodeURIComponent(path)}`, base).href;
+}
+
+// A file address the Sidebar resolves without a Session scope; used for Markdown links.
+export function absoluteFileAddress(path) {
+  const absolute = path.replace(/\\/g, '/').replace(/^\/+/, '');
+  return 'dsh-resource://file/absolute/' + absolute.split('/')
+    .map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
 }
 export function markdownHtml(text) {
   if (text.length > MAX_DOCUMENT) throw new Error('文档超过 200 万字符，请分段查看。');
@@ -311,7 +325,7 @@ function diagramCard(pre, dark, signal) {
   });
   return queue;
 }
-export function mountMarkdown(root, text, { documentPath, dark = false } = {}) {
+export function mountMarkdown(root, text, { documentPath, dark = false, openFile } = {}) {
   const controller = new AbortController(); const { signal } = controller;
   root.classList.add('mds-document'); root.dataset.mdsVersion = diagnostics.version;
   root.dataset.state = 'rendering';
@@ -331,11 +345,18 @@ export function mountMarkdown(root, text, { documentPath, dark = false } = {}) {
     const href = a.getAttribute('href');
     if (href.startsWith('#')) a.addEventListener('click', e => { e.preventDefault(); let id; try { id = decodeURIComponent(href.slice(1)); } catch { return; } [...root.querySelectorAll('[id]')].find(n => n.id === id)?.scrollIntoView({ block: 'start' }); }, { signal });
     else {
-      // 相对文件链接必须走认证的 api/file 路由：原样 href 会被浏览器拼到
-      // 当前页面 URL（如 127.0.0.1:3080/docs/...）上，必然 404。
-      const local = localImageUrl(href, documentPath);
-      if (local) a.href = local;
-      a.target = '_blank'; a.rel = 'noopener noreferrer';
+      const localPath = localFilePath(href, documentPath);
+      // Markdown links open in the right-side preview, not as raw bytes in a new tab.
+      if (localPath && openFile && /\.md$/i.test(localPath)) {
+        a.addEventListener('click', e => { e.preventDefault(); openFile(absoluteFileAddress(localPath)); }, { signal });
+        a.removeAttribute('target');
+      } else {
+        // Non-Markdown files use the authenticated media route; a raw relative
+        // href resolves against the Web page URL and 404s.
+        const local = localImageUrl(href, documentPath);
+        if (local) a.href = local;
+        a.target = '_blank'; a.rel = 'noopener noreferrer';
+      }
     }
   });
   const jobs = [...root.querySelectorAll('pre.mds-diagram-source')].map(pre => diagramCard(pre, dark, signal));

@@ -7,6 +7,9 @@ import highlightCss from 'highlight.js/styles/github-dark.css';
 export const name = 'dsh-md-studio';
 export const inject = ['slots'];
 const MARKDOWN_KEY = '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/markdown';
+// The Sidebar opener is set once in apply(); MarkdownBody is a slot component
+// and cannot receive this service through the slot's fixed owner props.
+let openResource;
 // Assistant code blocks only ever appear inside the chat transcript; watching it
 // instead of document.body keeps the Mermaid watcher off unrelated DOM churn.
 const CHAT_ROOT_SELECTOR = '[data-chat-flow]';
@@ -37,7 +40,7 @@ export function MarkdownBody({ content, resourceAddress, useResource }) {
     let view = null;
     const frame = requestAnimationFrame(() => {
       if (!root.current || source) return;
-      view = mountMarkdown(root.current, content.text, { documentPath: absolutePath, dark });
+      view = mountMarkdown(root.current, content.text, { documentPath: absolutePath, dark, openFile: openResource });
     });
     return () => {
       cancelAnimationFrame(frame);
@@ -54,6 +57,8 @@ export function MarkdownBody({ content, resourceAddress, useResource }) {
 }
 
 export function apply(ctx) {
+  const sidebar = ctx.get?.('sidebarRight');
+  openResource = sidebar?.openResource?.bind(sidebar);
   ctx.effect(() => {
     const tag = document.createElement('style');
     tag.dataset.plugin = name; tag.textContent = `${css}\n${katexCss}\n${highlightCss}`;

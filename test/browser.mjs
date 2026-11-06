@@ -20,7 +20,7 @@ const registration = await page.evaluate(() => {
   const mod = window.__registration.factory(spec => { if (spec === 'react') return window.__testReact; throw new Error('Undeclared module '+spec); });
   window.__effects = [];
   window.__slot = null;
-  const ctx = { effect(fn) { const d = fn(); if (typeof d === 'function') window.__effects.push(d); return d; }, slots: {
+  const ctx = { get(name) { return name === 'sidebarRight' ? { openResource: url => { window.__opened = url; } } : undefined; }, effect(fn) { const d = fn(); if (typeof d === 'function') window.__effects.push(d); return d; }, slots: {
     inject(name, fn) { if (name !== 'sidebar.right.tab.document') throw new Error('Wrong slot '+name); const d = fn(); window.__effects.push(d); return d; },
     register(options, component) { window.__slot = {options,component}; return () => { window.__slot = null; }; }
   }};
@@ -38,8 +38,11 @@ await page.evaluate(text => window.__render(text), sample);
 await page.waitForSelector('.mds-document[data-state="ready"]', {timeout:60000});
 const relativeLinkHref = await page.evaluate(() => [...document.querySelectorAll('.mds-document a[href]')]
   .find(a => a.textContent.includes('相对链接'))?.getAttribute('href'));
-assert.ok(relativeLinkHref?.includes('/api/file?path='), `本地链接应走 api/file 路由，实际 ${relativeLinkHref}`);
-assert.ok(relativeLinkHref?.includes('docs%2Fother.md'), `相对链接应基于文档目录解析，实际 ${relativeLinkHref}`);
+assert.ok(relativeLinkHref?.includes('docs/other.md'), `本地链接应保留原始目标，实际 ${relativeLinkHref}`);
+// The same Markdown link opens through the Sidebar when an opener is present.
+await page.evaluate(() => [...document.querySelectorAll('.mds-document a[href]')]
+  .find(a => a.textContent.includes('相对链接')).click());
+assert.equal(await page.evaluate(() => window.__opened), 'dsh-resource://file/absolute/D:/docs/other.md');
 // Perf regression: content.eof is not a render input (the render only reads
 // content.text), so flipping it on identical text must not rebuild the document
 // or re-lay out its Mermaid diagrams.
