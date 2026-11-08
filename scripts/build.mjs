@@ -4,6 +4,7 @@ import { resolve, dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const root = resolve(import.meta.dirname, '..');
+const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 await mkdir(join(root, 'lib'), { recursive: true });
 const styles = {
   name: 'inline-css-and-fonts',
@@ -25,7 +26,8 @@ await build({
   absWorkingDir: root, entryPoints: ['src/client.js'], outfile: 'lib/client.js',
   bundle: true, format: 'cjs', platform: 'browser', target: 'chrome120', minify: true,
   external: ['react'], plugins: [styles], legalComments: 'external',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  // Runtime version comes from package.json so it cannot drift from the package version.
+  define: { 'process.env.NODE_ENV': '"production"', __MD_STUDIO_VERSION__: JSON.stringify(pkg.version) },
   banner: { js: 'window.__ModuleLoader__.load({id:"dsh-md-studio",factory:(require)=>{var module={exports:{}};var exports=module.exports;' },
   footer: { js: ';return module.exports;}});' },
 });
