@@ -96,6 +96,15 @@ await page.waitForSelector('.mds-document[data-state="partial"]');
 assert.equal(await page.locator('.mds-diagram[data-state="error"]').count(), 1);
 assert.equal(await page.locator('.mds-diagram[data-state="ok"]').count(), 5);
 assert.equal(await page.evaluate(() => !!window.__injected), false);
+// Regression (2026-11-10): SKILL.md 的 YAML frontmatter 不得被当正文渲染;
+// 占位符尖括号(如 mcp:<server>/<tool>)不得被 DOMPurify 当标签连同内容剥掉。
+await page.evaluate(text => window.__render(text), '---\nname: mcp-cheatsheet\ndescription: >-\n  DSH MCP 调用速查。\n---\n\n工具 id 形如 mcp:<server>/<tool>。');
+await page.waitForSelector('.mds-document[data-state="ready"]');
+const fmText = await page.locator('.mds-document').textContent();
+assert.ok(!fmText.includes('description: >-'), 'frontmatter 应被剥离, 实际渲染出 description 行: ' + fmText.slice(0, 80));
+assert.ok(!fmText.includes('name: mcp-cheatsheet'), 'frontmatter 应被剥离, 实际渲染出 name 行');
+assert.ok(fmText.includes('<server>'), '未知标签应转义为可见文本, 实际被吞掉');
+assert.ok(fmText.includes('<tool>'), '未知标签应转义为可见文本, 实际被吞掉');
 // Regression: rapid file changes never display a stale diagram result.
 await page.evaluate(() => { window.__render('# Replacement\n\nOnly this new file.'); });
 await page.waitForSelector('.mds-document[data-state="ready"]');
@@ -228,7 +237,7 @@ await page.evaluate(() => { window.__root.unmount(); window.__effects.reverse().
 assert.equal(await page.locator('style[data-plugin="dsh-md-studio"]').count(), 0);
 assert.equal(errors.length, 0, JSON.stringify(errors));
 assert.equal(network.length, 0, 'Renderer should make zero network requests: '+JSON.stringify(network));
-const result = {passed:true,browser:await browser.version(),nativeSlot:registration.options.key,svgDiagrams:5,externalRequests:network.length,pageErrors:errors.length,checks:['GFM table','task lists','footnotes','inline and block KaTeX','syntax highlight','four Mermaid types','mermaid syntax auto-repair','source toggle','fullscreen','SVG download','dark theme rerender','invalid diagram isolation','HTML sanitization','file switching','plugin disposal','chat mermaid rendering','chat streaming stability','chat no-double-render','chat bare-svg widget','plain code untouched','chat theme rebuild','doc mds-diagram widget','doc bare-svg widget','chat disposal'],status};
+const result = {passed:true,browser:await browser.version(),nativeSlot:registration.options.key,svgDiagrams:5,externalRequests:network.length,pageErrors:errors.length,checks:['GFM table','task lists','footnotes','inline and block KaTeX','syntax highlight','four Mermaid types','mermaid syntax auto-repair','source toggle','fullscreen','SVG download','dark theme rerender','invalid diagram isolation','HTML sanitization','frontmatter stripping','unknown tag escaping','file switching','plugin disposal','chat mermaid rendering','chat streaming stability','chat no-double-render','chat bare-svg widget','plain code untouched','chat theme rebuild','doc mds-diagram widget','doc bare-svg widget','chat disposal'],status};
 await writeFile(resolve(root,'test/artifacts/result.json'),JSON.stringify(result,null,2));
 console.log(JSON.stringify(result,null,2));
 await browser.close();

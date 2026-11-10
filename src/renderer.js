@@ -92,6 +92,37 @@ const md = new MarkdownIt({ html: true, linkify: true, typographer: false, highl
   catch { html = escape(code); /* plain code remains readable */ }
   return code.length <= 10_000 ? remember(HL_CACHE, key, html, HL_CACHE_MAX) : html;
 }}).use(footnote).use(taskLists, { enabled: false }).use(mathPlugin);
+// html:true 会把 mcp:<server>/<tool> 里的 <server> 当标签, 再被 DOMPurify 连同内容剥掉
+// (2026-11-10 实例: 描述渲染成 "mcp:/")。这里按 DOMPurify 的标签白名单把非法标签转义成
+// 可见文本; 合法标签(含 <svg> 及默认白名单)照旧走原路径。
+// DOMPurify 没有公开 isValidTag(只有 isValidAttribute), 故用一次 sanitize 探针判定
+// 某标签是否会被保留, 结果按标签名缓存(每个新标签名只探一次)。
+const TAG_ALLOWED = new Map();
+const SANITIZE_ADDED_TAGS = ['math', 'semantics', 'annotation'];
+function tagIsAllowed(name) {
+  const key = name.toLowerCase();
+  if (SANITIZE_ADDED_TAGS.includes(key)) return true;
+  const cached = TAG_ALLOWED.get(key);
+  if (cached !== undefined) return cached;
+  let allowed = true;
+  try { allowed = DOMPurify.sanitize('<' + key + '></' + key + '>').toLowerCase().includes('<' + key); }
+  catch { allowed = true; }
+  TAG_ALLOWED.set(key, allowed);
+  return allowed;
+}
+md.core.ruler.push('escape-unknown-tags', (state) => {
+  // html_inline 挂在 inline token 的 children 上, 顶层 state.tokens 里看不到, 必须下钻
+  for (const token of state.tokens) {
+    if (!token.children) continue;
+    for (const child of token.children) {
+      if (child.type !== 'html_inline' || !child.content) continue;
+      const tag = /^<\/?([A-Za-z][\w:-]*)/.exec(child.content);
+      if (!tag) continue;
+      if (tagIsAllowed(tag[1])) continue;
+      child.content = child.content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  }
+});
 const fence = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const info = tokens[idx].info.trim();
@@ -156,11 +187,19 @@ export function sessionFileAddressFor(resourceAddress, documentPath, targetPath)
   return prefix + encodeURIComponent(sessionId) + '/' + targetRel.split('/')
     .map(segment => encodeURIComponent(segment)).join('/');
 }
+/** 剥离文档开头的 YAML frontmatter: SKILL.md 等机器可读文件的头部不是给人看的正文,
+ *  直接渲染会把 "name:" / "description: >-" 当成段落显示(2026-11-10 md-studio 实例)。
+ *  只在块内确实像 YAML(至少一条 key:)时才剥, 免得把开头的 --- 当成水平线而误删正文。 */
+function stripFrontmatter(text) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/.exec(text);
+  if (!m || !/^\s*[\w.-]+\s*:/m.test(m[1])) return text;
+  return text.slice(m[0].length);
+}
 export function markdownHtml(text) {
   if (text.length > MAX_DOCUMENT) throw new Error('文档超过 200 万字符，请分段查看。');
   const cached = HTML_CACHE.get(text);
   if (cached !== undefined) return cached;
-  const html = DOMPurify.sanitize(md.render(text), { ADD_TAGS: ['math', 'semantics', 'annotation'], FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'style'], FORBID_ATTR: ['onerror', 'onclick'], ADD_ATTR: ['target'], ALLOW_DATA_ATTR: false });
+  const html = DOMPurify.sanitize(md.render(stripFrontmatter(text)), { ADD_TAGS: ['math', 'semantics', 'annotation'], FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'style'], FORBID_ATTR: ['onerror', 'onclick'], ADD_ATTR: ['target'], ALLOW_DATA_ATTR: false });
   return text.length <= 750_000 ? remember(HTML_CACHE, text, html, HTML_CACHE_MAX) : html;
 }
 function button(label, action, signal) {
